@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Runs the fast gate before every commit. Installed once per clone with
+#   git config core.hooksPath scripts/hooks
+# It checks the working tree, not only the staged changes: commit what you
+# checked. Skipping it (`--no-verify`) is never part of the workflow.
+exec "$(git rev-parse --show-toplevel)/scripts/check.sh" fast

@@ -1,0 +1,10 @@
+# cargo-mutants (https://mutants.rs), run by `scripts/check.sh full` on the
+# diff. The `mutants` profile in Cargo.toml builds without debug info.
+profile = "mutants"
+# Generous, because a mutant can turn a loop endless; such a mutant counts as
+# caught only through the timeout.
+timeout_multiplier = 3.0
+minimum_test_timeout = 20
+# Code that cannot run in host tests (FFI, UI shells) may be excluded here,
+# each glob with a comment why.
+exclude_globs = []

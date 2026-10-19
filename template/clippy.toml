@@ -1,0 +1,91 @@
+# Companion file to the lints in Cargo.toml: thresholds, test exemptions,
+# and the rules of CLAUDE.md that a path ban can enforce.
+#
+# A path into a crate that is not a dependency is ignored silently; a wrong
+# path inside a dependency only prints a warning that the gate does not
+# turn into an error. After editing this file or updating dependencies,
+# read the clippy output and probe new entries (docs/guidelines/update.md).
+# The one sanctioned place for a banned call carries
+# `#[expect(clippy::disallowed_methods, reason = "…")]`.
+
+# Tests may unwrap, expect, panic, index and print (testing.md). These do not
+# cover `panic_in_result_fn` or the `disallowed_*` lints.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+allow-print-in-tests = true
+
+# Nothing here is a published API: lint `pub` items too (`option_option`,
+# `rc_buffer`, `trivially_copy_pass_by_ref` are silent on them otherwise).
+avoid-breaking-exported-api = false
+# `manual_let_else` for every enum, not only Option and Result.
+matches-for-let-else = "AllTypes"
+
+# 0 switches `excessive_nesting` off. Every impl, fn, closure, loop, if and
+# match arm counts: a method in an impl may nest two levels, a free function
+# three.
+excessive-nesting-threshold = 4
+# Code lines, without comments and blank lines.
+too-many-lines-threshold = 60
+# "No bools as parameters or as more than one field" (rule 1).
+max-fn-params-bools = 0
+max-struct-bools = 1
+# Values that belong together are a struct.
+too-many-arguments-threshold = 5
+
+disallowed-methods = [
+    # Rule 4 and concurrency.md: named threads; a refused thread is an error.
+    { path = "std::thread::spawn", replacement = "std::thread::Builder::spawn", reason = "panics if the system refuses a thread; use a named thread::Builder" },
+    { path = "std::thread::Scope::spawn", reason = "panics if the system refuses a thread; use thread::Builder::spawn_scoped" },
+    # Rule 4: time is injected; read the clock in one clock module.
+    { path = "std::time::Instant::now", reason = "time is injected: read the clock in the one clock module so tests control it" },
+    { path = "std::time::SystemTime::now", reason = "time is injected: read the clock in the one clock module so tests control it" },
+    { path = "rand::rng", reason = "randomness is injected so tests are reproducible" },
+    { path = "rand::thread_rng", reason = "randomness is injected so tests are reproducible" },
+    # Rule 3: user files are never overwritten; atomic replace lives in one file module.
+    { path = "std::fs::write", reason = "truncates an existing file: File::create_new, or the atomic replace of the file module" },
+    { path = "std::fs::File::create", replacement = "std::fs::File::create_new", reason = "truncates an existing file" },
+    { path = "std::fs::OpenOptions::truncate", reason = "overwrites an existing file: use create_new" },
+    { path = "std::fs::copy", reason = "overwrites the destination" },
+    { path = "std::fs::remove_dir_all", reason = "deletes a whole tree: only in the file module, on paths it created" },
+    # Rule 4: no leaking, no process-global state.
+    { path = "std::boxed::Box::leak", reason = "no leaking to get 'static" },
+    { path = "std::vec::Vec::leak", reason = "no leaking to get 'static" },
+    { path = "std::string::String::leak", reason = "no leaking to get 'static" },
+    { path = "std::env::set_current_dir", reason = "process-global state: pass paths explicitly" },
+    { path = "std::process::abort", reason = "how the program ended is an enum that main maps to the exit code" },
+    # processes.md: all children go through the one process module.
+    { path = "std::process::Command::new", reason = "child processes go through the one process module (timeouts, pipes, process group)" },
+    # concurrency.md: a dropped JoinHandle detaches the task.
+    { path = "tokio::spawn", reason = "a dropped JoinHandle detaches the task: use a JoinSet owned by the caller" },
+    { path = "tokio::task::spawn", reason = "a dropped JoinHandle detaches the task: use a JoinSet owned by the caller" },
+]
+
+disallowed-types = [
+    # Rule 1: wire formats are read into typed structs at the boundary.
+    { path = "serde_json::Value", reason = "read wire formats into typed structs at the boundary" },
+    { path = "serde_json::Map", reason = "read wire formats into typed structs at the boundary" },
+]
+
+disallowed-macros = [
+    # Rule 4: no global mutable state.
+    { path = "std::thread_local", reason = "no global mutable state: pass state explicitly" },
+]
+
+# ── Dioxus / WASM projects: append these entries to `disallowed-methods`
+#    (dioxus-wasm.md). `suboptimal_flops`, which asks for `mul_add`, is in
+#    nursery and therefore already off. ──────────────────────────────────
+#   { path = "wasm_bindgen_futures::spawn_local", reason = "task without an owner: use Dioxus' spawn, which ends with the component" },
+#   { path = "dioxus_core::spawn_forever", reason = "task without an owner: use Dioxus' spawn, which ends with the component" },
+#   { path = "wasm_bindgen::closure::ScopedClosure::forget", reason = "leak: keep the Closure in the struct that owns the listener and remove it on Drop" },
+#   { path = "gloo_timers::callback::Timeout::forget", reason = "timer without an owner: keep the handle (it cancels on Drop)" },
+#   { path = "gloo_timers::callback::Interval::forget", reason = "timer without an owner: keep the handle and cancel it when the route is left" },
+#   { path = "dioxus_document::eval", reason = "the Eval carries the JS error and is easily discarded: use js_sys::eval or typed web_sys" },
+#   { path = "f64::mul_add", reason = "WASM has no fused multiply-add: a slow software call" },
+#   { path = "f32::mul_add", reason = "WASM has no fused multiply-add: a slow software call" },
+#
+# ── Projects whose lint `arithmetic_side_effects` is on in boundary modules
+#    may exempt types that cannot overflow (floats in a vector type, big
+#    numbers). Paths are the type's own path, e.g. `malachite::Natural`. ──
+# arithmetic-side-effects-allowed = []

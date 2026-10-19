@@ -1,0 +1,255 @@
+# ════════════════════════════════════════════════════════════════════════
+#  PROJECT: settings that belong to this project only
+# ════════════════════════════════════════════════════════════════════════
+#
+# Replace the PROJECT_* placeholders and add what only this project needs.
+# The rules for writing code are in CLAUDE.md and docs/guidelines/; this
+# file holds settings only, each with a one-line reason.
+
+# Empty workspace: needed so that `[lints] workspace = true` inherits the
+# lints below. A multi-crate project lists its crates instead
+# (`members = ["crates/*"]`, `resolver = "3"`) and defines shared dependency
+# versions once in `[workspace.dependencies]`.
+[workspace]
+
+[package]
+name = "PROJECT_NAME"
+version = "0.1.0"
+publish = false
+edition = "2024"
+# Same version as rust-toolchain.toml; raise both together (update.md).
+rust-version = "1.99.1"
+description = "PROJECT_DESCRIPTION"
+
+# `[lib]`, `[[bin]]` and `[features]` go here when needed. An app has no
+# lib.rs unless a second binary or an integration test needs one.
+
+[dependencies]
+# One comment per dependency: what it is used for.
+
+[dev-dependencies]
+# proptest: property tests for parsers, numbers and state machines.
+# insta: snapshot tests for structured text output.
+
+[lints]
+workspace = true
+
+# ────────────────────────────────────────────────────────────────────────
+#  Build profiles. `/zuschnitt` keeps the ones this project needs and
+#  deletes the rest.
+# ────────────────────────────────────────────────────────────────────────
+
+# Fast iteration: line tables give file:line in backtraces at a fraction of
+# full debug info. For a debugger session use `--profile debug` (Cargo 1.99).
+[profile.dev]
+debug = "line-tables-only"
+# Dependencies lightly optimised; 2 or 3 stops sharing generics between
+# crates. A project whose dev build is too slow at runtime (signal
+# processing, simulations, big numbers) raises both to 3 and says why.
+[profile.dev.package."*"]
+opt-level = 1
+
+# Native app or CLI: runtime speed.
+[profile.release]
+opt-level = 3
+# Whole-program optimisation: slow to build, faster and smaller result.
+lto = "fat"
+codegen-units = 1
+# No unwinding machinery. Tests and benches ignore this and still unwind.
+# Drop does not run on a panic: see processes.md.
+panic = "abort"
+# A safety net behind `arithmetic_side_effects`, which only guards boundary
+# modules: an overflow stops the program instead of computing on.
+overflow-checks = true
+# Keep symbol names so crash reports and the panic hook stay readable.
+strip = "debuginfo"
+
+# Profiling (samply, Instruments, dhat): release code with full symbols.
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = "none"
+
+# cargo-mutants builds every mutant; no debug info keeps that fast
+# (.cargo/mutants.toml selects it).
+[profile.mutants]
+inherits = "test"
+debug = "none"
+
+# Web (Dioxus `dx`, WASM): size over speed. dx uses exactly this name;
+# measure "z" against "s". Delete for non-web projects.
+# [profile.wasm-dev]
+# inherits = "dev"
+# [profile.wasm-release]
+# inherits = "release"
+# opt-level = "z"
+
+# Server: a panic in one handler must not end the process (server-db.md).
+# [profile.server-release]
+# inherits = "release"
+# panic = "unwind"
+# lto = "thin"
+
+# ────────────────────────────────────────────────────────────────────────
+#  RUST AND RUSTDOC LINTS
+# ────────────────────────────────────────────────────────────────────────
+# `deny`, not `forbid`, so a justified exception can be an `#[expect]`.
+# Warnings (unused code, unused variables …) stay warnings while drafting;
+# scripts/check.sh turns every warning into an error (CARGO_BUILD_WARNINGS).
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "deny"
+unreachable_pub = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+# A Result dropped by a bare `f();` is otherwise only a warning.
+unused_must_use = "deny"
+# A stale `#[expect]` fails instead of hiding a fixed problem.
+unfulfilled_lint_expectations = "deny"
+# `-1_i32.abs()` is `-(1.abs())`.
+ambiguous_negative_literals = "deny"
+# A pub type in a private module leaking through a signature.
+unnameable_types = "deny"
+missing_debug_implementations = "deny"
+# Names are English.
+non_ascii_idents = "deny"
+deprecated_in_future = "deny"
+let_underscore_drop = "deny"
+macro_use_extern_crate = "deny"
+meta_variable_misuse = "deny"
+redundant_lifetimes = "deny"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+unit_bindings = "deny"
+unused_import_braces = "deny"
+unused_lifetimes = "deny"
+unused_macro_rules = "deny"
+unused_qualifications = "deny"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "deny"
+invalid_codeblock_attributes = "deny"
+invalid_html_tags = "deny"
+invalid_rust_codeblocks = "deny"
+bare_urls = "deny"
+redundant_explicit_links = "deny"
+unescaped_backticks = "deny"
+
+# ────────────────────────────────────────────────────────────────────────
+#  CLIPPY LINTS
+# ────────────────────────────────────────────────────────────────────────
+# The stable groups are on `deny`. `nursery` is not: its lints are unfinished
+# by definition (false positives, contradictions with the rules); the useful
+# ones are picked below. `restriction` cannot be enabled as a whole; its
+# lints are picked one by one. Thresholds and path bans are in clippy.toml.
+[workspace.lints.clippy]
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+complexity = { level = "deny", priority = -1 }
+perf = { level = "deny", priority = -1 }
+style = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+# Duplicate versions deep in the dependency tree are not ours to fix.
+multiple_crate_versions = "allow"
+# Rewrites `match` on an Option into `map_or_else` (CLAUDE.md, rule 2).
+option_if_let_else = "allow"
+# Suggests `assert!` in production code (rule 3).
+manual_assert = "allow"
+
+# --- Picked from nursery ---
+redundant_clone = "deny"
+significant_drop_in_scrutinee = "deny"
+fallible_impl_from = "deny"
+debug_assert_with_mut_call = "deny"
+collection_is_never_read = "deny"
+path_buf_push_overwrite = "deny"
+read_zero_byte_vec = "deny"
+non_send_fields_in_send_ty = "deny"
+unused_peekable = "deny"
+branches_sharing_code = "deny"
+needless_collect = "deny"
+
+# --- No panics (rule 3) ---
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+panic_in_result_fn = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+exit = "deny"
+indexing_slicing = "deny"
+string_slice = "deny"
+as_conversions = "deny"
+# Off globally, on per boundary module: `#![deny(clippy::arithmetic_side_effects)]`
+# where code computes on outside input (rule 3).
+arithmetic_side_effects = "allow"
+
+# --- No silent failures (rule 3) ---
+let_underscore_must_use = "deny"
+let_underscore_untyped = "deny"
+unused_result_ok = "deny"
+map_err_ignore = "deny"
+assertions_on_result_states = "deny"
+try_err = "deny"
+return_and_then = "deny"
+
+# --- Types and control flow (rules 1, 2) ---
+wildcard_enum_match_arm = "deny"
+unnecessary_rest_pattern = "deny"
+rest_pattern_accessible_field = "deny"
+iter_over_hash_type = "deny"
+infinite_loop = "deny"
+else_if_without_else = "deny"
+shadow_unrelated = "deny"
+partial_pub_fields = "deny"
+empty_structs_with_brackets = "deny"
+empty_enum_variants_with_brackets = "deny"
+non_zero_suggestions = "deny"
+same_name_method = "deny"
+empty_drop = "deny"
+
+# --- Ownership and concurrency (rule 4) ---
+clone_on_ref_ptr = "deny"
+rc_buffer = "deny"
+rc_mutex = "deny"
+mutex_atomic = "deny"
+mutex_integer = "deny"
+mem_forget = "deny"
+str_to_string = "deny"
+
+# --- Numbers and bits ---
+float_cmp_const = "deny"
+lossy_float_literal = "deny"
+precedence_bits = "deny"
+suspicious_xor_used_as_pow = "deny"
+host_endian_bytes = "deny"
+
+# --- Files ---
+filetype_is_file = "deny"
+verbose_file_reads = "deny"
+
+# --- Tests (fakes behind traits, not cfg) ---
+cfg_not_test = "deny"
+tests_outside_test_module = "deny"
+redundant_test_prefix = "deny"
+
+# --- unsafe, where an `#[expect(unsafe_code)]` allows it ---
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "deny"
+unnecessary_safety_comment = "deny"
+
+# --- Hygiene ---
+dbg_macro = "deny"
+string_add = "deny"
+redundant_type_annotations = "deny"
+renamed_function_params = "deny"
+mixed_read_write_in_expression = "deny"
+deref_by_slicing = "deny"
+unnecessary_self_imports = "deny"
+self_named_module_files = "deny"
+
+# --- Suppressions are explicit (rule 0) ---
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"

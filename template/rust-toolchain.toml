@@ -1,0 +1,10 @@
+# The toolchain this project builds with, pinned so that a new Rust release
+# cannot change the build overnight (new lints, new compiler behaviour).
+# Raise it deliberately together with `rust-version` in Cargo.toml
+# (docs/guidelines/update.md). rustup installs it on first use.
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+# llvm-tools: strip and coverage tools (`dx build --release` needs them).
+components = ["clippy", "rustfmt", "llvm-tools"]
+# Project-specific: extra targets, e.g. `targets = ["wasm32-unknown-unknown"]`.

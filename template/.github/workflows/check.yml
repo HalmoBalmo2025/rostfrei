@@ -1,0 +1,44 @@
+# The same gate as before a commit and in /ship: scripts/check.sh full,
+# with mutants on the commits of the push. Runs on every push to main and by
+# hand. Code that only builds on macOS needs `runs-on: macos-latest` (a Mac
+# minute counts tenfold in private repositories).
+name: check
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # The pinned toolchain from rust-toolchain.toml, with its components
+      # and targets.
+      - name: Toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-shear,cargo-mutants,typos
+
+      - name: Gate
+        run: |
+          before="${{ github.event.before }}"
+          if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ]; then
+            scripts/check.sh full --base "$before"
+          else
+            scripts/check.sh full --base "$(git rev-list --max-parents=0 HEAD)"
+          fi

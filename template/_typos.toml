@@ -1,0 +1,9 @@
+# typos (https://github.com/crate-ci/typos), run by `scripts/check.sh fast`:
+# misspellings in names, comments and docs. It knows common misspellings,
+# not a dictionary, so German text rarely trips it. A false positive goes
+# into `extend-words` (word = "word") with a comment.
+
+[files]
+extend-exclude = ["fixtures/", "*.svg", "*.lock"]
+
+[default.extend-words]
