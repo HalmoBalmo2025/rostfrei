@@ -30,9 +30,11 @@ names after a Dioxus update (`update.md`).
 
 ## Lints and macros
 
+- `#[component]` generates methods that trip `same_name_method` on every
+  component (96 times in one workspace): a Dioxus project relaxes it in
+  `Cargo.toml` with that reason.
 - `rsx!` code triggers `unused_qualifications` in components with event
-  handlers, and `asset!` statics trigger `volatile_composites`: one
-  `#[expect]` per component or static, never module-wide.
+  handlers: one `#[expect]` per component, never module-wide.
 - Lints do not see inside `rsx!` string interpolations: arithmetic and
   indexing there go into a named function first.
 - Props with signals: derive `PartialEq` (signals implement it). A

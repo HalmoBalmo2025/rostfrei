@@ -207,6 +207,7 @@ partial_pub_fields = "deny"
 empty_structs_with_brackets = "deny"
 empty_enum_variants_with_brackets = "deny"
 non_zero_suggestions = "deny"
+# Dioxus: `#[component]` trips this on every component; relax it there.
 same_name_method = "deny"
 empty_drop = "deny"
 
