@@ -28,6 +28,10 @@ allow = [
     "CC0-1.0",
     "BSL-1.0",
     "0BSD",
+    # Weak copyleft per file; common through `dirs` (option-ext).
+    "MPL-2.0",
+    # A data license; common through `webpki-roots` (rustls).
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.8
 # The list is a superset; licenses no dependency uses are fine.

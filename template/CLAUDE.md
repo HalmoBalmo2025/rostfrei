@@ -9,9 +9,10 @@ Phase: Aufbau
 
 ## Working
 
-- **Aufbau** (building the skeleton): write code fast. The gate still holds
-  on every commit. When the skeleton stands, run `/zuschnitt`; it tailors
-  the setup to the project and switches the phase to Pflege.
+- **Aufbau** (building the skeleton): write code fast. Every commit passes
+  fmt and clippy; unused-code warnings fail only from Pflege on. When the
+  skeleton stands, the user runs `/zuschnitt`; it tailors the setup to the
+  project and switches the phase to Pflege.
 - **Pflege** (maintenance, features, fixes): before writing code, write a
   short plan: what changes, which types, states, callers, persisted data and
   wire formats it touches, what could break as a side effect, and which tests
@@ -20,15 +21,16 @@ Phase: Aufbau
 - **`/ship` before every push** in Pflege: an independent reviewer checks
   the change; only findings with evidence count.
 - The gate is never weakened on the side. Lints, `clippy.toml`,
-  `scripts/check.sh`, the toolchain and dependency versions change only as a
-  separate, deliberate step with a stated reason (`docs/guidelines/update.md`).
+  `scripts/check.sh`, the phase, the toolchain and dependency versions
+  change only as a separate, deliberate step with a stated reason
+  (`docs/guidelines/update.md`).
 - Fixing one instance of a pattern means finding every instance (grep) and
   fixing them all, or listing the rest in the commit message.
 
 ## Checks
 
-    scripts/check.sh fast   # fmt, clippy with warnings as errors, greps (pre-commit hook)
-    scripts/check.sh full   # + tests, docs, mutants on the diff, deny, shear
+    scripts/check.sh fast   # fmt, clippy, greps, typos (the pre-commit hook)
+    scripts/check.sh full   # + tests, docs, deny, shear, mutants on the diff
 
 The git hook is installed once per clone: `git config core.hooksPath scripts/hooks`.
 
@@ -43,9 +45,9 @@ The git hook is installed once per clone: `git config core.hooksPath scripts/hoo
 - English for names, comments, docs, logs, errors and commits; text shown to
   the user is in the product's language.
 - Comments say why. A doc comment states the contract: preconditions, units,
-  invariants, errors, edge behaviour; one that repeats the name is deleted.
-  When behaviour changes, comments, docs, README and messages change in the
-  same commit. No references to plans, phases or tickets.
+  invariants, errors, edge behaviour; one that only repeats the name is not
+  written. When behaviour changes, comments, docs, README and messages change
+  in the same commit. No references to plans, phases or tickets.
 - Knowledge the code cannot show (protocols, measured limits, experiment
   results) is written down once under `docs/` and the code points there.
 
@@ -60,9 +62,9 @@ The git hook is installed once per clone: `git config core.hooksPath scripts/hoo
   fallback path. No `Default` where no value is meaningful.
 - Newtypes for ids, units and validated values; durations are `Duration`.
   Parse, don't validate: raw input becomes such a type once, at the boundary
-  (`TryFrom`, `FromStr`, `serde(try_from)`), and the type travels on. Fields
-  are private; constructors enforce invariants and return `Result`.
-- Wire formats are read into typed structs with serde at the boundary.
+  (`TryFrom`, `FromStr`, `serde(try_from)`), and the type travels on. A type
+  with an invariant keeps its fields private; its constructor checks and
+  returns `Result`.
 - One source of truth for defaults, limits, names and lists. Constants that
   must agree are checked together (a `const` assertion or a test).
 - Exhaustive by construction: adding a variant makes the compiler point at
@@ -79,7 +81,7 @@ The git hook is installed once per clone: `git config core.hooksPath scripts/hoo
   early `return`.
 - Every started operation ends in exactly one terminal event (done, failed,
   cancelled); every request gets exactly one reply, rejections included.
-  Cancel and stop are idempotent.
+  Work already done survives a failing step. Cancel and stop are idempotent.
 - Happy path at the left margin (`let … else`, `?`). Iterators, not index
   arithmetic. Results never depend on hash order. Small functions with one
   job. An order that matters (pipeline, start-up, shutdown) is written down
@@ -103,7 +105,8 @@ The git hook is installed once per clone: `git config core.hooksPath scripts/hoo
   source. Another program's error keeps that program's message as a field.
 - No error is swallowed. For every ignored error ask: does it change the
   result's content? Then it reaches the user or the log. Where failure is
-  truly irrelevant: `Ok(_) | Err(_) => {}` with a comment why.
+  truly irrelevant: `Ok(()) | Err(_) => {}` with a comment why. A later
+  message never replaces an error the user has not seen.
 - A value produced by a failed read is never written back: a user file that
   fails to parse is never overwritten with defaults. User files are never
   overwritten at all (`create_new`; atomic replace only in one file module).
@@ -117,32 +120,26 @@ The git hook is installed once per clone: `git config core.hooksPath scripts/hoo
 - Every resource (thread, task, child process, timer, listener, file, loaded
   model) has exactly one owner: usually a struct field; its own thread only
   if it blocks for long or several threads use it. A guard type stops and
-  joins or reaps it on every exit path, error returns included. Nothing is
-  fire-and-forget.
-- With `panic = "abort"` no `Drop` runs on a panic: whatever must not
-  outlive the program is bound to it by other means (`processes.md`).
-- Start-up: clean up what a crashed run left, start the owners, connect them.
-  Shutdown runs in reverse; a component still running must not restart one
-  already stopped. How the program ended is an enum that `main` maps to the
-  exit code.
+  joins or reaps it on every exit path, error returns included; nothing is
+  fire-and-forget. On abort no `Drop` runs (`processes.md`).
+- Start-up cleans up what a crashed run left; shutdown runs in reverse
+  order, and nothing still running can restart what is already stopped.
+  `main` maps an enum of how the program ended to the exit code.
 - Logs record events, decisions, sizes and durations, never user content;
   user text is a newtype without `Display` and with a redacting `Debug`.
 - Time and randomness are injected (a `now` parameter, a clock trait).
 
-**5. Tests** (details in `testing.md`)
-- Property tests for parsers, numeric code and state machines: an invariant
-  `check(&State)` after every step of random event sequences, against a
-  simple reference model; round trips such as `parse(print(x)) == x`.
-- Side effects sit behind small traits. Fakes can fail on command; flow
-  tests cover every dependency failing or vanishing in every state, late
-  results and results of cancelled requests.
+**5. Tests** (`testing.md`)
+- Property tests for parsers, numeric code and state machines; fakes that
+  can fail on command; flow tests for every dependency failing in every state.
 - Every fixed bug gets a test that replays it and fails without the fix.
-- A mutant that survives on a changed line is killed by a test or explained.
-- Tests never touch the user's real files or settings.
+- A surviving mutant on a changed line is killed by a test, or excluded in
+  `.cargo/mutants.toml` with the reason it is equivalent.
 
 **6. Structure**
 - Visibility as narrow as possible. Apps have no `lib.rs` unless a second
-  binary or an integration test needs it: `pub` hides dead code.
+  binary needs one (`pub` hides dead code); integration tests reach the
+  binary through `env!("CARGO_BIN_EXE_<name>")`.
 - One module or directory per feature; split a file when it mixes concerns.
   A module with submodules is a directory with `mod.rs`.
 - Names say what a thing is in the domain; no abbreviations.
@@ -150,6 +147,9 @@ The git hook is installed once per clone: `git config core.hooksPath scripts/hoo
   `default-features = false` where the defaults pull in more.
 
 ## Modules: read before touching
+
+`/zuschnitt` adds this project's paths to each row and deletes the rows
+that do not apply.
 
 | The work touches                                            | Read first                         |
 | ----------------------------------------------------------- | ---------------------------------- |
@@ -166,4 +166,4 @@ The git hook is installed once per clone: `git config core.hooksPath scripts/hoo
 ## Project notes
 
 <!-- Language of the product, exceptions to the rules above (each with its
-reason), modules that do not apply, how to run the program. -->
+reason), how to run the program. -->

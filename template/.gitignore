@@ -5,6 +5,9 @@
 # macOS
 .DS_Store
 
+# A full `cargo mutants` run outside scripts/check.sh
+/mutants.out*/
+
 # Backups of rustfmt
 **/*.rs.bk
 

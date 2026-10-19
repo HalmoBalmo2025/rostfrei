@@ -15,8 +15,8 @@ check.
 - **Task**: what the change was supposed to do.
 - **Mode**: `diff` (review the changes since a base) or `full` (review the
   listed modules as they are).
-- **Focus**: `logic` (steps 2–6 below) or `hygiene` (steps 1, 7, 8), or
-  `all`.
+- **Focus**: `logic` (steps 2–6 below), `hygiene` (steps 1, 7, 8), `all`,
+  or `free` (below).
 - **Base** and the report files of `scripts/check.sh full` in
   `target/rostfrei/`: `diff.patch`, `gate.patch`, `attention.txt`,
   `check-full.txt`, `mutants.out/missed.txt`.
@@ -26,17 +26,19 @@ You do not get the author's reasoning. Do not ask for it.
 
 ## Setup
 
-1. Read `CLAUDE.md` (core rules and project notes), the listed guideline
-   modules and `.claude/skills/ship/checklist.md`.
-2. Make a scratch copy for tests, never touching the working tree:
+1. `CLAUDE.md` (core rules and project notes) is already in your context.
+   Read the listed guideline modules and `.claude/skills/ship/checklist.md`
+   (not with focus `free`).
+2. Make a scratch worktree for tests; never touch the working tree. Shell
+   variables and `cd` do not carry over between Bash calls, so print the
+   paths once and use them literally afterwards:
 
-       repo="$(git rev-parse --show-toplevel)"
-       scratch="$(mktemp -d)/review"
-       git -C "$repo" worktree add --detach "$scratch" HEAD
-       export CARGO_TARGET_DIR="$repo/target"
+       pwd && git worktree add --detach target/rostfrei/review-<focus>-<part> HEAD && cd target/rostfrei/review-<focus>-<part> && pwd
 
-   All test files you write go into `$scratch`. Remove it at the end with
-   `git -C "$repo" worktree remove --force "$scratch"`.
+   The first path is the project (`<repo>`), the second the worktree
+   (`<path>`). Every test you write goes into `<path>`; run tests as
+   `cd <path> && CARGO_TARGET_DIR=<repo>/target cargo test …`. Before your
+   final message, remove it with `git worktree remove --force <path>`.
 
 ## Order of work
 
@@ -72,6 +74,16 @@ For every finding, search for the same pattern in the rest of the code
 (grep) and list every other instance: the fix covers the pattern, not the
 one place.
 
+**Focus `free`.** Do not read `checklist.md` or the guideline modules, and
+skip the order of work. Read the diff and every function it touches end to
+end, as the user of the feature would use it, and follow each path where
+data can be lost, a wait can last forever, a result can go to the wrong
+request, or a message can be wrong. A different way of reading finds
+different defects: in the replay of real bugs, a reviewer working like this
+caught defects the structured ones missed, and the other way round. The
+evidence rules below apply; in the report, list under "Checked" the paths
+you followed instead of the steps.
+
 ## Evidence: what counts as a finding
 
 A finding needs all of:
@@ -87,6 +99,16 @@ A finding needs all of:
     with another language, drift between code and docs, code that only
     builds on another platform): the two passages that contradict each
     other, quoted with `path:line`.
+
+If the project cannot be built here (another platform, a missing SDK),
+copy the modules under review unchanged into a scratch crate, include them
+with `#[path = "…"]`, replace what they import from the platform with small
+stand-ins, and test them there; say so in the evidence.
+
+A defect that no path reaches today but that one ordinary change would
+expose (a reply that is never sent, a result matched to the wrong request,
+a fallback that drops data) is a finding of severity klein, marked
+"latent", with the passages that show it as evidence; it is not a question.
 
 Anything without evidence is a **question**, not a finding: at most five,
 the most important first. A finding you could not prove is a question.
@@ -121,4 +143,5 @@ Write the report in English, exactly in this shape, and nothing else:
     - 1 Scope and gate: <what you looked at, in one line>
     - … one line per step of your focus, also for steps without findings
 
-Then remove the scratch worktree.
+Remove the scratch worktree before you answer: the report is your final
+message.

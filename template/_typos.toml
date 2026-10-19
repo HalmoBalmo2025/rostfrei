@@ -1,9 +1,17 @@
-# typos (https://github.com/crate-ci/typos), run by `scripts/check.sh fast`:
-# misspellings in names, comments and docs. It knows common misspellings,
-# not a dictionary, so German text rarely trips it. A false positive goes
-# into `extend-words` (word = "word") with a comment.
+# typos (https://github.com/crate-ci/typos), run by `scripts/check.sh`:
+# misspellings in names, comments and docs. It knows English only: German
+# words it takes for English misspellings are listed below. A project with
+# much German user text can instead exclude the files that hold it (the
+# texts live in one place per language, ui.md).
 
 [files]
 extend-exclude = ["fixtures/", "*.svg", "*.lock"]
 
 [default.extend-words]
+# German words typos reads as English misspellings.
+alle = "alle"
+ein = "ein"
+ist = "ist"
+oder = "oder"
+ordner = "ordner"
+sie = "sie"

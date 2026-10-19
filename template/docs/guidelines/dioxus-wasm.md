@@ -9,14 +9,16 @@ names after a Dioxus update (`update.md`).
 - Logic lives in plain Rust modules or crates without Dioxus or `web-sys`,
   so its tests run on the host. Components hold state and wire events to it.
 - Clippy runs twice: for `wasm32-unknown-unknown` (what ships) and for the
-  host (where the tests run). `scripts/check.sh` does both when the target
-  is installed.
+  host (where the tests run). `scripts/check.sh` does both whenever
+  `rust-toolchain.toml` lists the target. In a workspace with server crates,
+  `target_packages` in `scripts/check.sh` names the web packages only
+  (`-p web`), so tokio or sqlx are not built for WASM.
 
 ## Ownership in the browser
 
 - Tasks, timers, listeners, animation-frame loops and JS closures belong to a
-  component and end with it. `clippy.toml` forbids the fire-and-forget entry
-  points: `wasm_bindgen_futures::spawn_local`, `dioxus_core::spawn_forever`,
+  component and end with it. The Dioxus block of `clippy.toml` (enabled by
+  `/zuschnitt`) forbids the fire-and-forget entry points: `wasm_bindgen_futures::spawn_local`, `dioxus_core::spawn_forever`,
   `wasm_bindgen::closure::ScopedClosure::forget`,
   `gloo_timers::callback::{Timeout, Interval}::forget`,
   `dioxus_document::eval`. A task that outlives its route writes to freed

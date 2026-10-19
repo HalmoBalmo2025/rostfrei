@@ -1,5 +1,6 @@
 ---
 name: ship
+argument-hint: "[--full] [--base REF] [--no-push]"
 description: The independent review before a push in a rostfrei project. Use when the user types /ship or asks to push, ship or finish a change. Runs the full gate, has fresh reviewer agents check the change and prove every finding, gets one approval for the fixes, fixes them, checks again, records lessons for rostfrei, then pushes. Arguments - --full reviews the whole codebase instead of the diff; --base REF sets the base; --no-push stops before pushing.
 ---
 
@@ -38,24 +39,35 @@ your job, not the reviewer's: fix, commit, run again.
 ## 3. Review
 
 Start reviewers with the Agent tool, `subagent_type: rust-reviewer`, in
-parallel, each with a fresh context:
-- `diff` mode: two reviewers, focus `logic` and focus `hygiene`.
+parallel, each with a fresh context. If `rust-reviewer` is not available
+(it is loaded when the session starts; a template copied into the project
+during this session is not yet known), stop and ask the user to restart
+Claude Code; never substitute another agent type.
+- `diff` mode: three reviewers, focus `logic`, `hygiene` and `free`.
 - `--full` mode: split the code into parts of roughly 1,500–3,000 lines
-  along module boundaries; one reviewer with focus `all` per part, plus one
-  `hygiene` reviewer over the whole tree for duplication and drift.
+  along module boundaries; per part one reviewer with focus `all` and one
+  with focus `free`, plus one `hygiene` reviewer over the whole tree for
+  duplication and drift.
 
 Each prompt contains only: the task statement, the mode and focus, the
 base, the paths of `target/rostfrei/{diff.patch,gate.patch,attention.txt,
 check-full.txt,mutants.out/missed.txt}`, the files or modules to review in
 `--full` mode, and the guideline modules that apply (from the table in
-`CLAUDE.md`, by the paths touched). Never your reasoning about the code,
-your opinion of it, or hints about where bugs might be.
+`CLAUDE.md`, by the paths touched; none for focus `free`). Never your
+reasoning about the code, your opinion of it, or hints about where bugs
+might be.
 
 ## 4. Sort the findings
 
 - Check each finding's evidence. If it is unclear, run the reviewer's test
   patch yourself in a scratch worktree. A finding without working evidence
   becomes a question.
+- Settle the questions before the user sees them: for each, read the code
+  it names and, where you can, write a small test in a scratch worktree. A
+  question you confirm becomes a finding with your evidence; one you refute
+  is dropped with a line in the report; only what neither reading nor a
+  test can settle goes to the user. (In the replay, two real defects ended
+  up only as questions.)
 - Merge duplicates across reviewers; keep the list of other instances.
 - Group as **grob**, **klein**, **nice to have** (the reviewer's severity,
   corrected where it is plainly wrong).
@@ -72,7 +84,8 @@ have in the report, and say so at the top.
 
 ## 6. Fix
 
-For each approved finding:
+Note the commit before the first fix (`git rev-parse HEAD`): the re-check
+reviews only what changed after it. For each approved finding:
 - the reviewer's failing test becomes the regression test;
 - fix the cause, and every other instance of the same pattern the reviewer
   listed or a grep finds;
@@ -82,8 +95,9 @@ For each approved finding:
 ## 7. Check again
 
 - `scripts/check.sh full --base <base>` until green.
-- One reviewer, fresh context, focus `all`, gets its earlier findings and
-  the new diff (fixes only): for each fix it confirms that the regression
+- One reviewer, fresh context, focus `all`, gets the earlier findings and
+  the fixes only (`git diff <commit before the first fix>` written to
+  `target/rostfrei/fixes.patch`): for each fix it confirms that the regression
   test fails with the fix reverted and passes with it, and looks for new
   problems in the fix itself. New grob or klein findings go back to step 5.
 
@@ -108,6 +122,7 @@ pattern, a question in `checklist.md`, a sentence in the guidelines.
 
 ## 9. Push and report
 
-- `git push`, unless `--no-push`.
+- `git push` (`git push -u origin HEAD` when the branch has no upstream yet),
+  unless `--no-push`.
 - Report to the user in a few lines: what was found and fixed, what was
   left and why, surviving mutants, proposals written for rostfrei.

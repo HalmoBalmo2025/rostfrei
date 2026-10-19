@@ -8,8 +8,9 @@
 
 # Empty workspace: needed so that `[lints] workspace = true` inherits the
 # lints below. A multi-crate project lists its crates instead
-# (`members = ["crates/*"]`, `resolver = "3"`) and defines shared dependency
-# versions once in `[workspace.dependencies]`.
+# (`members = ["crates/*"]`, `resolver = "3"`), defines shared dependency
+# versions once in `[workspace.dependencies]`, and every member's
+# Cargo.toml has `[lints] workspace = true`.
 [workspace]
 
 [package]
@@ -24,8 +25,9 @@ description = "PROJECT_DESCRIPTION"
 # `[lib]`, `[[bin]]` and `[features]` go here when needed. An app has no
 # lib.rs unless a second binary or an integration test needs one.
 
+# One comment per dependency, directly above it or at the end of its line:
+# what it is used for (scripts/check.sh checks this).
 [dependencies]
-# One comment per dependency: what it is used for.
 
 [dev-dependencies]
 # proptest: property tests for parsers, numbers and state machines.
@@ -40,7 +42,8 @@ workspace = true
 # ────────────────────────────────────────────────────────────────────────
 
 # Fast iteration: line tables give file:line in backtraces at a fraction of
-# full debug info. For a debugger session use `--profile debug` (Cargo 1.99).
+# full debug info. For a debugger session build with
+# `CARGO_PROFILE_DEV_DEBUG=full`.
 [profile.dev]
 debug = "line-tables-only"
 # Dependencies lightly optimised; 2 or 3 stops sharing generics between

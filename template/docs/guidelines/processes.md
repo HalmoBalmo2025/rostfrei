@@ -19,7 +19,10 @@ another language, or changing the messages exchanged with one.
   - reports a child that exits early with its own exit status and stderr,
     not as "broken pipe".
 - Tests use stand-ins (`/bin/sh -c …`, `sleep`, `exit 3`, 1 MB of output,
-  a grandchild that keeps the pipe open, an empty environment).
+  a grandchild that keeps the pipe open, an empty environment). A shell
+  may replace itself with its last command (bash on macOS does, dash on
+  Linux does not): force a real grandchild with `sleep 5; true`, or the
+  test passes on one system only.
 
 ## Children must not outlive the program
 

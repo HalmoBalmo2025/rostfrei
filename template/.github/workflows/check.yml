@@ -9,6 +9,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -34,6 +37,8 @@ jobs:
         with:
           tool: cargo-deny,cargo-shear,cargo-mutants,typos
 
+      # A manual run checks everything since the first commit, mutants
+      # included; a push checks its own commits.
       - name: Gate
         run: |
           before="${{ github.event.before }}"

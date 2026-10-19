@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: lernen
 description: Turns proposals from projects (ROSTFREI-VORSCHLAEGE.md files written by /ship) into changes of the rostfrei template. Use in the rostfrei repository when the user types /lernen, passes such files, or asks to take lessons from projects into rostfrei.
 ---
@@ -44,7 +45,8 @@ why. Ask once (AskUserQuestion, multi-select).
 - `VERSION`: minor for new or changed rules, patch for fixes. Update
   `template/.rostfrei` to the same version. `CHANGELOG.md`: one line per
   change with its origin.
-- Commit ("Learn from <projects>: …").
+- Commit ("Learn from <projects>: …") and tag it `v<version>`:
+  `/rostfrei-update` diffs between tags.
 
 ## 5. Close the loop
 

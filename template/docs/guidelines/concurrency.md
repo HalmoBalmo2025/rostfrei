@@ -58,6 +58,12 @@ retries or cancellation.
 - Slow work may start as soon as it becomes likely to be needed, but every
   such head start has a cancellation path and a test for it.
 
+## Logs from several threads
+
+- A log line is formatted together with its newline and written with one
+  `write_all` (or by one owner thread): `writeln!` on an unbuffered file
+  makes two writes, and lines from different threads run into each other.
+
 ## Shutdown
 
 - Shutdown is ordered and written down in one function: stop accepting work,

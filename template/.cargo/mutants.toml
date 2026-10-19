@@ -8,3 +8,6 @@ minimum_test_timeout = 20
 # Code that cannot run in host tests (FFI, UI shells) may be excluded here,
 # each glob with a comment why.
 exclude_globs = []
+# Truly equivalent mutants (they change nothing observable), each with its
+# reason. `main` is the thin shell; flow tests cover what it wires.
+exclude_re = ['replace main with \(\)']

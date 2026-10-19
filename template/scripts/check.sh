@@ -12,16 +12,19 @@
 # Without --base, `full` diffs against the upstream branch, else origin/HEAD,
 # else it skips the mutants step and says so.
 #
-# Written for the bash 3.2 that ships with macOS.
+# Reports for the reviewer go to target/rostfrei/ and are rewritten on every
+# run. Written for the bash 3.2 that ships with macOS.
 
 set -u
 
 mode="${1:-}"
-shift || true
+[ $# -gt 0 ] && shift
 base=""
 while [ $# -gt 0 ]; do
     case "$1" in
-        --base) base="${2:-}"; shift 2 || true ;;
+        --base)
+            [ $# -ge 2 ] || { echo "--base needs a REF" >&2; exit 2; }
+            base="$2"; shift 2 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -36,6 +39,10 @@ out="target/rostfrei"
 mkdir -p "$out"
 summary="$out/check-$mode.txt"
 : > "$summary"
+if [ "$mode" = "full" ]; then
+    rm -rf "$out/mutants.out" "$out/mutants.out.old"
+    rm -f "$out/diff.patch" "$out/gate.patch" "$out/attention.txt"
+fi
 
 phase="$(sed -n 's/^Phase:[[:space:]]*\([A-Za-z]*\).*/\1/p' CLAUDE.md 2>/dev/null | head -n 1)"
 if [ "$mode" = "fast" ] && [ "$phase" = "Aufbau" ]; then
@@ -43,7 +50,6 @@ if [ "$mode" = "fast" ] && [ "$phase" = "Aufbau" ]; then
 else
     warnings="deny"
 fi
-export CARGO_TERM_COLOR="${CARGO_TERM_COLOR:-always}"
 
 failed=0
 note() { printf '%s\n' "$*" | tee -a "$summary"; }
@@ -56,12 +62,32 @@ step() {
 skip() { note "SKIP  $1 ($2)"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 have_cargo() { cargo "$1" --version >/dev/null 2>&1; }
+# A required tool that is missing fails `full`; `fast` (the commit hook)
+# only says so.
+missing() {
+    if [ "$mode" = "full" ]; then note "FAIL  $1 (not installed: $2)"; failed=1; else skip "$1" "not installed: $2"; fi
+}
 
-# Extra targets from rust-toolchain.toml, e.g. wasm32-unknown-unknown.
+# Extra targets from rust-toolchain.toml, e.g. wasm32-unknown-unknown, and
+# the packages to check for them (all by default; a workspace with server
+# crates names the web packages here, e.g. `-p web`).
 targets="$(sed -n 's/^[[:space:]]*targets[[:space:]]*=[[:space:]]*\[\(.*\)\].*/\1/p' rust-toolchain.toml 2>/dev/null | tr -d '"' | tr ',' ' ')"
+target_packages="--workspace"
 
-clippy_host() { CARGO_BUILD_WARNINGS="$warnings" cargo clippy --workspace --all-targets --locked; }
-clippy_target() { CARGO_BUILD_WARNINGS="$warnings" cargo clippy --workspace --all-targets --locked --target "$1"; }
+# clippy, failing also when clippy.toml names a path that does not exist
+# (clippy only warns about it, and that warning is not a lint).
+run_clippy() {
+    log="$out/clippy-$1.log"; shift
+    CARGO_BUILD_WARNINGS="$warnings" cargo clippy "$@" --locked 2>&1 | tee "$log"
+    status=${PIPESTATUS[0]}
+    if grep -q 'does not refer to' "$log"; then
+        echo "clippy.toml names a path that does not exist (see above)"
+        return 1
+    fi
+    return "$status"
+}
+clippy_host() { run_clippy host --workspace --all-targets; }
+clippy_target() { run_clippy "$1" $target_packages --target "$1"; }
 
 # Inner `#![allow(...)]` / `#![expect(...)]` over a whole module escape the
 # allow lints (rule 0). `#![deny(...)]` is fine.
@@ -71,22 +97,28 @@ no_inner_allow() {
         return 1
     fi
 }
-# String errors (rule 3).
+# String errors (rule 3), including `type Err = String` and `&str` errors.
 no_string_errors() {
-    if git grep --untracked -nE 'Result<([^<>(),;{]|<[^<>]*>|\([^()]*\))*,[[:space:]]*String[[:space:]]*>' -- '*.rs'; then
-        echo "Result<_, String> found: errors are enums"
+    if git grep --untracked -nE 'Result<([^<>(),;{]|<[^<>]*>|\([^()]*\))*,[[:space:]]*(String|&[^;>]*str)[[:space:]]*>|type[[:space:]]+(Err|Error)[[:space:]]*=[[:space:]]*(String|&[^;]*str)[[:space:]]*;' -- '*.rs'; then
+        echo "String error found: errors are enums"
         return 1
     fi
 }
-# Every dependency line has a comment above it (rule 6).
+# Every dependency has a comment directly above it or at the end of its
+# line (rule 6). A comment may cover a group of consecutive lines only by
+# repeating; `[dependencies.name]` tables need one above the header.
 dependency_comments() {
     awk '
         FNR == 1 { section = ""; previous = "" }
-        /^\[/ { section = $0; previous = $0; next }
-        section ~ /dependencies\]$/ && /^[A-Za-z0-9_-]+[[:space:]]*=/ {
-            if (previous !~ /^[[:space:]]*#/ && previous !~ /^[A-Za-z0-9_-]+[[:space:]]*=/) {
+        /^\[/ {
+            section = $0
+            if ($0 ~ /dependencies\.[A-Za-z0-9_-]+\]$/ && previous !~ /^[[:space:]]*#/) {
                 printf "%s:%d: dependency without a comment: %s\n", FILENAME, FNR, $0; bad = 1
             }
+            previous = $0; next
+        }
+        section ~ /dependencies\]$/ && /^[A-Za-z0-9_-]+[[:space:]]*=/ && $0 !~ /#/ && previous !~ /^[[:space:]]*#/ {
+            printf "%s:%d: dependency without a comment: %s\n", FILENAME, FNR, $0; bad = 1
         }
         { if ($0 !~ /^[[:space:]]*$/) previous = $0 }
         END { exit bad }
@@ -101,13 +133,13 @@ done
 step "no inner allow" no_inner_allow
 step "no String errors" no_string_errors
 step "dependency comments" dependency_comments
-if have typos; then step "typos" typos; else skip "typos" "not installed: cargo install --locked typos-cli"; fi
+if have typos; then step "typos" typos; else missing "typos" "cargo install --locked typos-cli"; fi
 
 if [ "$mode" = "full" ]; then
     step "tests" env CARGO_BUILD_WARNINGS=deny cargo test --workspace --locked
     step "docs" env CARGO_BUILD_WARNINGS=deny RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-items --locked
-    if have_cargo deny; then step "deny" cargo deny check; else note "FAIL  deny (not installed: cargo install --locked cargo-deny)"; failed=1; fi
-    if have_cargo shear; then step "shear" cargo shear; else note "FAIL  shear (not installed: cargo install --locked cargo-shear)"; failed=1; fi
+    if have_cargo deny; then step "deny" cargo deny check; else missing "deny" "cargo install --locked cargo-deny"; fi
+    if have_cargo shear; then step "shear" cargo shear; else missing "shear" "cargo install --locked cargo-shear"; fi
 
     # The diff under review.
     if [ -z "$base" ]; then
@@ -116,22 +148,37 @@ if [ "$mode" = "full" ]; then
     if [ -z "$base" ] && git rev-parse --verify --quiet origin/HEAD >/dev/null; then
         base="origin/HEAD"
     fi
-    if [ -n "$base" ]; then
-        merge_base="$(git merge-base "$base" HEAD)"
+    merge_base=""
+    if [ -n "$base" ] && ! merge_base="$(git merge-base "$base" HEAD 2>/dev/null)"; then
+        note "FAIL  base $base has no merge base with HEAD (shallow clone or force push?)"
+        failed=1
+        merge_base=""
+    fi
+    if [ -n "$merge_base" ]; then
         git diff "$merge_base" > "$out/diff.patch"
         note "BASE  $base ($merge_base)"
 
         # Gate files changed in this diff: the reviewer treats every relaxed
         # setting as a finding unless the plan approved it.
-        git diff "$merge_base" -- Cargo.toml '*/Cargo.toml' clippy.toml rust-toolchain.toml deny.toml .cargo/ scripts/ > "$out/gate.patch"
+        git diff "$merge_base" -- Cargo.toml '*/Cargo.toml' clippy.toml rust-toolchain.toml deny.toml _typos.toml CLAUDE.md .rostfrei .cargo/ .claude/ .github/ scripts/ > "$out/gate.patch"
         if [ -s "$out/gate.patch" ]; then note "NOTE  gate files changed: $out/gate.patch"; fi
 
-        # Added lines the reviewer must look at (rule 3, hygiene).
-        git diff "$merge_base" -- '*.rs' | grep -nE '^\+.*(unwrap_or_default\(|unwrap_or\(0|saturating_|\.ok\(\)|if let Ok\(|Ok\(_\) \| Err\(_\)|TODO|FIXME|XXX|println!|eprintln!)' > "$out/attention.txt"
+        # Added lines the reviewer must justify (rule 3, hygiene), as path:line.
+        git diff -U0 "$merge_base" -- '*.rs' | awk '
+            /^\+\+\+ b\// { file = substr($0, 7); next }
+            /^\+\+\+ / { file = ""; next }
+            /^@@/ { split($3, range, ","); line = substr(range[1], 2) + 0; next }
+            /^\+/ {
+                if (file != "" && $0 ~ /(unwrap_or|map_or|\.ok\(\)|\.err\(\)|if let Ok\(|let _ =|let _:|Err\(_\) =>|saturating_|wrapping_|TODO|FIXME|XXX|println!|eprintln!)/) {
+                    printf "%s:%d: %s\n", file, line, substr($0, 2)
+                }
+                line++
+            }
+        ' > "$out/attention.txt"
         if [ -s "$out/attention.txt" ]; then note "NOTE  added lines to justify: $out/attention.txt"; fi
 
         if ! have_cargo mutants; then
-            note "FAIL  mutants (not installed: cargo install --locked cargo-mutants)"; failed=1
+            missing "mutants" "cargo install --locked cargo-mutants"
         elif ! grep -qE '^\+\+\+ b/.*\.rs' "$out/diff.patch"; then
             skip "mutants" "no Rust changes in the diff"
         else
@@ -145,7 +192,7 @@ if [ "$mode" = "full" ]; then
                 *) note "FAIL  mutants (diff): cargo-mutants exited $status"; failed=1 ;;
             esac
         fi
-    else
+    elif [ -z "$base" ]; then
         skip "mutants" "no base: pass --base REF"
     fi
 fi

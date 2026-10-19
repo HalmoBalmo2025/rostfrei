@@ -3,6 +3,98 @@
 Versions: minor for new or changed rules, patch for fixes. Every entry
 names where it came from.
 
+## 1.1.0 (2026-10-19)
+
+From an independent review of 1.0.0 and the first replay of real bugs
+(`eval/`).
+
+### Gate (`scripts/check.sh`)
+- `--base` without a value no longer loops; an unknown base fails instead
+  of passing green (CI after a force push).
+- Reports in `target/rostfrei/` are cleared on every `full` run, so the
+  reviewer never reads an old diff or old surviving mutants.
+- The dependency-comment check works: a comment directly above each
+  dependency or at the end of its line; `[dependencies.name]` tables too.
+- `attention.txt` lists `path:line` and also `unwrap_or*`, `map_or`,
+  `.err()`, `let _`, `wrapping_*`.
+- The String-error grep also finds `type Err = String` and `&str` errors.
+- A path in `clippy.toml` that does not resolve fails the gate.
+- `gate.patch` also covers `CLAUDE.md` (the phase), `_typos.toml`,
+  `.claude/`, `.github/` and `.rostfrei`.
+- Extra targets (WASM) are checked without `--all-targets` and for
+  `target_packages` only, so server crates are not built for WASM.
+- A missing tool fails `full` and is reported by `fast`; no forced colours.
+
+### Review
+- The reviewer prints its worktree path and uses it literally (shell state
+  does not carry over between calls) and removes it before answering.
+- `/ship` stops when `rust-reviewer` is unknown (a restart is needed after
+  setup) instead of using another agent; the re-check sees only the fixes
+  (`fixes.patch`); `git push -u` when there is no upstream.
+- `/zuschnitt`, `/rostfrei-update` and `/lernen` run only when the user
+  types them.
+- Checklist: two facts folded into one state; retired keys under
+  `deny_unknown_fields`; a UI that starts from defaults after a failed load;
+  an error message replaced by a later one in the same event; requests that
+  supersede each other (A → B → A); input fields that commit every
+  keystroke; separators and formulas in text exports; positions stored in
+  layout pixels.
+- A third reviewer with focus `free` (no checklist, no fixed order) runs
+  in `diff` mode, and one per part in `--full` mode. In the replay, a
+  free-form review and the structured one missed different defects; together
+  they caught all ten known defects of the four paired cases.
+- `/ship` settles the reviewers' questions itself (reading, a small test)
+  before the user sees them; a confirmed question becomes a finding.
+- Checklist: a `?` between starting a resource and handing it to its guard;
+  fallback paths that drop what the main path delivers (both missed in the
+  replay).
+- Latent defects (unreachable today, one ordinary change away) are klein
+  findings with quotes as evidence, not questions: in the replay, two such
+  defects ended up as questions and counted as misses.
+- Checklist: compute the extreme combination of constants that must agree
+  (both misses of the replay were of this kind).
+- The reviewer tests code that cannot build here in a scratch crate that
+  includes the modules unchanged with `#[path]` and stands in for the
+  platform (what the replay reviewers did on their own).
+
+### Rules
+- Core: work already done survives a failing step; a later message never
+  replaces an error the user has not seen; `Ok(()) | Err(_)` for unit
+  results; a type with an invariant keeps its fields private (not every
+  struct); docs that only repeat the name are not written; integration
+  tests reach the binary through `CARGO_BIN_EXE_*` instead of a `lib.rs`;
+  equivalent mutants are excluded in `.cargo/mutants.toml` with a reason.
+  The core is shorter: wire formats, abort and start-up details live in
+  their modules.
+- processes.md: stand-in tests force a real grandchild (`sleep 5; true`),
+  because dash and bash differ in replacing themselves with the last
+  command. concurrency.md: one `write_all` per log line.
+- testing.md: kani for small pure functions, `insta --unreferenced=reject`,
+  integration tests in `mod tests`, `cfg_attr` for target-specific
+  `#[expect]`.
+- dioxus-wasm.md: the Dioxus bans are a block `/zuschnitt` enables;
+  `target_packages` for fullstack workspaces.
+- `/zuschnitt` fixes references to dropped modules, adds the project's
+  paths to the module table, and plans the adoption of an existing
+  codebase pattern by pattern.
+
+### Settings
+- `clippy.toml` bans also `std::env::args` (panics on non-UTF-8; use
+  `args_os`), `thread::sleep`, the clocks of tokio, chrono,
+  jiff and time, `rand::random`, `fs::rename`, `fs::remove_file`,
+  `OpenOptions::create` and the tokio file functions.
+- `deny.toml` allows MPL-2.0 and CDLA-Permissive-2.0 (common through
+  `dirs` and `rustls`); `_typos.toml` lists German words typos misreads;
+  `.cargo/mutants.toml` excludes `main`; `.gitignore` ignores
+  `mutants.out*`; CI has read-only permissions; no claim about a `debug`
+  profile.
+- `SETUP.md`: prints the clone path, lists collisions and copies without
+  overwriting, `git init` for an empty folder, restart before `/zuschnitt`.
+- `/rostfrei-update` diffs between version tags; `/lernen` tags releases.
+- `selftest.sh` also runs mutants on a real diff, checks `--base`
+  handling, the dependency comments and that dead code passes in Aufbau.
+- Dioxus: `same_name_method` fires on every `#[component]`.
+
 ## 1.0.0 (2026-10-19)
 
 First version as rostfrei, replacing the template whose guidelines lived as

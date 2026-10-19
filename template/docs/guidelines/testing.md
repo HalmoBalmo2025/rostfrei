@@ -57,10 +57,22 @@ tests that fail when the behaviour is wrong, not tests that pass.
 
 - `scripts/check.sh full` runs `cargo mutants --in-diff` on the changes.
   A mutant that survives on a changed line means no test pins that
-  behaviour: add the test, or explain in the commit why the mutant is
-  equivalent (changes nothing observable, e.g. only the split point of a
-  divide-and-conquer). Now and then run a full `cargo mutants` and work
-  through `mutants.out/missed.txt`.
+  behaviour: add the test. Only a truly equivalent mutant (it changes
+  nothing observable, e.g. only the split point of a divide-and-conquer)
+  gets an `exclude_re` entry in `.cargo/mutants.toml` with its reason. Now
+  and then run a full `cargo mutants` and work through
+  `mutants.out/missed.txt`.
+
+## Proofs and snapshots
+
+- Small pure functions with a hard contract (the `numeric` conversions, an
+  index computation, a checked parser step) can be proven for all inputs
+  with `kani` (`cargo install --locked kani-verifier && cargo kani setup`,
+  harnesses under `#[cfg(kani)]`). Use it where a property test leaves
+  doubt, not as a default.
+- With `insta`, CI also runs `cargo insta test --unreferenced=reject`, so a
+  snapshot no test uses any more fails; `/zuschnitt` adds it to
+  `scripts/check.sh`.
 
 ## Hygiene
 
@@ -71,5 +83,10 @@ tests that fail when the behaviour is wrong, not tests that pass.
   (`clippy.toml`); `panic_in_result_fn` forbids asserts in `Result` tests.
 - Tests live in a `#[cfg(test)] mod tests` beside the code, or in a sibling
   `tests.rs` once they outgrow it, split by the same topics as the code.
+  Integration tests under `tests/` also wrap their tests in
+  `#[cfg(test)] mod tests { … }` (`tests_outside_test_module`).
+- A lint that fires only for one target (WASM or host) is expected only
+  there: `#[cfg_attr(target_arch = "wasm32", expect(…, reason = "…"))]`;
+  otherwise `unfulfilled_lint_expectations` fails the other run.
 - Logic that only runs in the browser or behind a UI framework is moved into
   plain functions or crates so it can be tested on the host.

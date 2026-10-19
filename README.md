@@ -19,8 +19,11 @@ to ask for it every time. A project that adopts rostfrei gets:
 Why: in the two projects this grew from, compiler and clippy were clean,
 yet the history showed 34 fixed defects in 17 commits of one app and 38
 commits of another that each fixed something the guidelines already asked
-for. See [`eval/`](eval/) for what the review catches when those bugs are
-replayed.
+for. Replayed against those bugs, the review caught 26 of 35 (5 more in
+part), and all 54 extra findings that were checked were real. A plain
+review, run on four of the cases, caught about as many but backed none
+with a test, and missed different ones. Details in
+[`eval/RESULTS.md`](eval/RESULTS.md).
 
 ## What is in `template/`
 
@@ -28,7 +31,7 @@ replayed.
 | --- | --- |
 | `CLAUDE.md` | Phase, workflow, checks, the core rules (0–6), the table of modules, project notes |
 | `docs/guidelines/*.md` | Modules: testing, concurrency, processes, macOS, devices, UI, Dioxus/WASM, servers and data, updates |
-| `Cargo.toml` | Project part with placeholders, profiles, rust/rustdoc/clippy lints, each with a reason |
+| `Cargo.toml` | Project part with placeholders, profiles, rust/rustdoc/clippy lints, with reasons where they are not obvious |
 | `clippy.toml` | Thresholds, test exemptions, banned methods, types and macros |
 | `rust-toolchain.toml` | The pinned toolchain |
 | `deny.toml`, `_typos.toml`, `.cargo/mutants.toml` | cargo-deny, typos, cargo-mutants |
@@ -45,7 +48,8 @@ replayed.
 
 **New or existing project.** In the project folder, tell Claude Code:
 "Set up rostfrei from https://github.com/HalmoBalmo2025/rostfrei". It
-follows [`SETUP.md`](SETUP.md).
+follows [`SETUP.md`](SETUP.md). Restart Claude Code afterwards: skills and
+the reviewer agent load when a session starts.
 
 **Working.** `Phase: Aufbau` in `CLAUDE.md`: build the skeleton fast; the
 commit hook keeps fmt and clippy clean. Then `/zuschnitt` tailors the setup,

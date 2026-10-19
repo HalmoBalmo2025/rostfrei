@@ -5,16 +5,21 @@ rostfrei in the current project. Talk to the user in their language.
 
 ## 1. Get rostfrei
 
-    tmp="$(mktemp -d)" && git clone --depth 1 https://github.com/HalmoBalmo2025/rostfrei "$tmp/rostfrei"
+    tmp="$(mktemp -d)" && git clone https://github.com/HalmoBalmo2025/rostfrei "$tmp/rostfrei" && echo "$tmp/rostfrei"
 
-The repository is private; `gh auth login` or git credentials on this
-machine are needed. Read `$tmp/rostfrei/README.md` and `CHANGELOG.md`.
+Shell variables do not carry over between commands: use the printed path
+(`<clone>` below) literally. The repository is private; `gh auth login` or
+git credentials on this machine are needed. Read `<clone>/README.md` and
+`<clone>/CHANGELOG.md`.
 
 ## 2. Copy the template
 
-Copy everything under `template/`, dotfiles included, into the project root
-(`cp -R "$tmp/rostfrei/template/." .`), but never overwrite an existing file
-blindly:
+An empty folder first gets `git init`. Then list what would collide:
+
+    (cd "<clone>/template" && find . -type f) | while read -r f; do [ -e "$f" ] && echo "merge: $f"; done
+
+copy everything else, dotfiles included, without overwriting
+(`cp -Rn "<clone>/template/." .`), and merge each colliding file by hand:
 
 - **New project** (empty folder or a fresh `cargo new`): take the template
   files as they are; keep the generated `src/`.
@@ -50,10 +55,17 @@ comment (`//! What this program does.`), which `missing_docs` asks for.
 Run `scripts/check.sh fast`. If the toolchain reports a lint as unknown,
 remove it from `Cargo.toml` and write a proposal into
 `ROSTFREI-VORSCHLAEGE.md` (format in `.claude/skills/ship/SKILL.md`).
+Record the version in `.rostfrei` (it comes from the template).
 
 ## 4. Phase
 
+Claude Code loads `.claude/skills/` and `.claude/agents/` when a session
+starts: the new skills and the reviewer agent exist only after a restart.
+
 - **New project**: `Phase: Aufbau` stays. Commit ("Adopt rostfrei
-  <version>") and tell the user: build the skeleton, then `/zuschnitt`.
-- **Existing project**: commit, then run `/zuschnitt` right away; it
+  <version>") and tell the user: restart Claude Code, build the skeleton,
+  then type `/zuschnitt`.
+- **Existing project**: set `Phase: Aufbau` (an existing codebase usually
+  breaks many of the new rules at once), commit, and tell the user to
+  restart Claude Code and type `/zuschnitt`; it plans the adoption and
   includes the first full review (`/ship --full`).
